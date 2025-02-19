@@ -31,7 +31,7 @@ loaded_model.load_state_dict(torch.load("modelwithBatch.pth", map_location=devic
 loaded_model.eval()  # 推論モードに設定
 
 st.title("Digit Classification with SimpleMLP")
-st.write("画像をアップロードするか、サンプル画像を使用して予測を行います。")
+st.write("画像をアップロードして予測を行います。")
 
 # --- 画像アップロード ---
 uploaded_file = st.file_uploader("画像ファイルをアップロードしてください（PNG, JPG, JPEG）", type=["png", "jpg", "jpeg"])
@@ -42,29 +42,26 @@ if uploaded_file is not None:
     image = image.resize((28, 28))
     st.image(image, caption="アップロード画像", use_column_width=False)
     
-    # PIL Image を NumPy 配列に変換し、正規化
+    # PIL Image を NumPy 配列に変換し、正規化（0～1にスケーリング）
     image_np = np.array(image) / 255.0
     # テンソルに変換：形状 [1, 28, 28] → [1, 1, 28, 28]
     image_tensor = torch.tensor(image_np, dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+    
+    # --- 予測処理 ---
+    with torch.no_grad():
+        image_tensor = image_tensor.to(device)
+        output = loaded_model(image_tensor)  # 出力形状: [1, 10]
+        probabilities = torch.softmax(output, dim=1)
+        predicted_class = torch.argmax(probabilities, dim=1).item()
+
+    st.write("**予測されたクラス:**", predicted_class)
+    st.write("**各クラスの確率:**", probabilities.cpu().numpy())
+
+    # --- Matplotlib を用いて画像と予測結果を表示 ---
+    fig, ax = plt.subplots()
+    ax.imshow(image_tensor.squeeze().cpu().numpy(), cmap="gray")
+    ax.set_title(f"Prediction: {predicted_class}")
+    ax.axis("off")
+    st.pyplot(fig)
 else:
-    st.write("画像がアップロードされなかったため、サンプル画像を使用します。")
-    # サンプル画像として、ランダムな画像を生成（実際のデータセットを用いる場合はここを変更）
-    image_tensor = torch.rand(1, 1, 28, 28)
-    st.image(image_tensor.squeeze().cpu().numpy(), caption="サンプル画像", use_column_width=False)
-
-# --- 予測処理 ---
-with torch.no_grad():
-    image_tensor = image_tensor.to(device)
-    output = loaded_model(image_tensor)  # 出力形状: [1, 10]
-    probabilities = torch.softmax(output, dim=1)
-    predicted_class = torch.argmax(probabilities, dim=1).item()
-
-st.write("**予測されたクラス:**", predicted_class)
-st.write("**各クラスの確率:**", probabilities.cpu().numpy())
-
-# --- Matplotlib を用いて画像と予測結果を表示 ---
-fig, ax = plt.subplots()
-ax.imshow(image_tensor.squeeze().cpu().numpy(), cmap="gray")
-ax.set_title(f"予測: {predicted_class}")
-ax.axis("off")
-st.pyplot(fig)
+    st.write("画像がアップロードされていません。")
